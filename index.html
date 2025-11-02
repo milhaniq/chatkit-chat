@@ -67,6 +67,7 @@
             border-radius: 12px;
             overflow: hidden;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: block;
         }
         
         .config-note {
@@ -91,7 +92,7 @@
             border-radius: 4px;
             font-size: 0.85em;
             font-family: monospace;
-            max-height: 200px;
+            max-height: 300px;
             overflow-y: auto;
         }
     </style>
@@ -118,6 +119,19 @@
 
     <script src="https://cdn.platform.openai.com/deployments/chatkit/chatkit.js"></script>
     <script>
+        // Capture ALL console errors
+        const originalConsoleError = console.error;
+        console.error = function(...args) {
+            addDebugLog(`🔴 Console Error: ${args.join(' ')}`);
+            originalConsoleError.apply(console, args);
+        };
+        
+        const originalConsoleWarn = console.warn;
+        console.warn = function(...args) {
+            addDebugLog(`⚠️ Console Warning: ${args.join(' ')}`);
+            originalConsoleWarn.apply(console, args);
+        };
+        
         // Your Render backend URL
         const BACKEND_URL = 'https://chatkit-agent-server.onrender.com';
         
@@ -129,6 +143,21 @@
             debugDiv.innerHTML += `<br>[${timestamp}] ${message}`;
             debugDiv.scrollTop = debugDiv.scrollHeight;
             console.log(`[ChatKit Debug] ${message}`);
+        }
+        
+        // Monitor ChatKit element
+        function monitorChatKit() {
+            const chatkit = document.getElementById('my-chat');
+            if (chatkit) {
+                addDebugLog(`ChatKit element exists. Display: ${window.getComputedStyle(chatkit).display}, Visibility: ${window.getComputedStyle(chatkit).visibility}`);
+                
+                // Check if it has content
+                if (chatkit.shadowRoot) {
+                    addDebugLog(`ChatKit has shadowRoot with ${chatkit.shadowRoot.children.length} children`);
+                } else {
+                    addDebugLog(`ChatKit has no shadowRoot yet`);
+                }
+            }
         }
         
         // Wait for ChatKit to load
@@ -148,6 +177,9 @@
             }
             
             addDebugLog('✓ ChatKit script loaded');
+            
+            // Monitor ChatKit periodically
+            setInterval(monitorChatKit, 2000);
             
             // Configure ChatKit
             try {
@@ -184,13 +216,16 @@
                                 }
                                 
                                 addDebugLog('✓ Got client_secret successfully');
-                                statusDiv.textContent = '✓ Connected successfully!';
+                                addDebugLog(`Client secret starts with: ${data.client_secret.substring(0, 20)}...`);
+                                
+                                statusDiv.textContent = '✓ Session created! Waiting for chat to load...';
                                 statusDiv.className = 'success';
                                 
-                                // Hide success message after 3 seconds
+                                // Monitor what happens after returning the secret
                                 setTimeout(() => {
-                                    statusDiv.style.display = 'none';
-                                }, 3000);
+                                    addDebugLog('5 seconds after returning client_secret...');
+                                    monitorChatKit();
+                                }, 5000);
                                 
                                 return data.client_secret;
                             } catch (error) {
@@ -205,15 +240,29 @@
                 });
                 
                 addDebugLog('✓ ChatKit configured successfully');
+                
+                // Listen for custom events
+                chatkit.addEventListener('error', (e) => {
+                    addDebugLog(`❌ ChatKit error event: ${JSON.stringify(e.detail)}`);
+                });
+                
+                chatkit.addEventListener('ready', (e) => {
+                    addDebugLog(`✓ ChatKit ready event fired!`);
+                });
+                
             } catch (error) {
                 addDebugLog(`❌ Configuration error: ${error.message}`);
                 console.error('Configuration error:', error);
             }
         }
         
-        // Listen for any ChatKit errors
+        // Listen for any errors
         window.addEventListener('error', (event) => {
-            addDebugLog(`❌ Global error: ${event.message}`);
+            addDebugLog(`❌ Global error: ${event.message} at ${event.filename}:${event.lineno}`);
+        });
+        
+        window.addEventListener('unhandledrejection', (event) => {
+            addDebugLog(`❌ Unhandled promise rejection: ${event.reason}`);
         });
         
         // Start initialization when page loads

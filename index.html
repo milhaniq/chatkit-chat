@@ -83,6 +83,17 @@
             display: block;
             margin-bottom: 5px;
         }
+        
+        .debug-info {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-family: monospace;
+            max-height: 200px;
+            overflow-y: auto;
+        }
     </style>
 </head>
 <body>
@@ -98,6 +109,11 @@
             <strong>✓ Connected to backend:</strong>
             https://chatkit-agent-server.onrender.com
         </div>
+        
+        <div class="debug-info" id="debug-info">
+            <strong>Debug Log:</strong><br>
+            Initializing...
+        </div>
     </div>
 
     <script src="https://cdn.platform.openai.com/deployments/chatkit/chatkit.js"></script>
@@ -106,61 +122,99 @@
         const BACKEND_URL = 'https://chatkit-agent-server.onrender.com';
         
         const statusDiv = document.getElementById('status');
+        const debugDiv = document.getElementById('debug-info');
+        
+        function addDebugLog(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            debugDiv.innerHTML += `<br>[${timestamp}] ${message}`;
+            debugDiv.scrollTop = debugDiv.scrollHeight;
+            console.log(`[ChatKit Debug] ${message}`);
+        }
         
         // Wait for ChatKit to load
         function initializeChatKit() {
             const chatkit = document.getElementById('my-chat');
             
-            if (!chatkit || typeof chatkit.setOptions !== 'function') {
-                // ChatKit not ready yet, wait a bit longer
+            if (!chatkit) {
+                addDebugLog('❌ ChatKit element not found');
                 setTimeout(initializeChatKit, 100);
                 return;
             }
             
+            if (typeof chatkit.setOptions !== 'function') {
+                addDebugLog('⏳ Waiting for ChatKit script to load...');
+                setTimeout(initializeChatKit, 100);
+                return;
+            }
+            
+            addDebugLog('✓ ChatKit script loaded');
+            
             // Configure ChatKit
-            chatkit.setOptions({
-                api: {
-                    async getClientSecret(currentClientSecret) {
-                        try {
-                            statusDiv.textContent = 'Creating chat session...';
-                            statusDiv.className = 'loading';
-                            
-                            const response = await fetch(`${BACKEND_URL}/api/chatkit/session`, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
+            try {
+                chatkit.setOptions({
+                    api: {
+                        async getClientSecret(currentClientSecret) {
+                            try {
+                                addDebugLog('Requesting session from backend...');
+                                statusDiv.textContent = 'Creating chat session...';
+                                statusDiv.className = 'loading';
+                                
+                                const response = await fetch(`${BACKEND_URL}/api/chatkit/session`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                    }
+                                });
+                                
+                                addDebugLog(`Backend response status: ${response.status}`);
+                                
+                                if (!response.ok) {
+                                    throw new Error(`Backend error: ${response.status}`);
                                 }
-                            });
-                            
-                            if (!response.ok) {
-                                throw new Error(`Backend error: ${response.status}`);
+                                
+                                const data = await response.json();
+                                addDebugLog('Received response from backend');
+                                
+                                if (data.error) {
+                                    throw new Error(data.error);
+                                }
+                                
+                                if (!data.client_secret) {
+                                    throw new Error('No client_secret in response');
+                                }
+                                
+                                addDebugLog('✓ Got client_secret successfully');
+                                statusDiv.textContent = '✓ Connected successfully!';
+                                statusDiv.className = 'success';
+                                
+                                // Hide success message after 3 seconds
+                                setTimeout(() => {
+                                    statusDiv.style.display = 'none';
+                                }, 3000);
+                                
+                                return data.client_secret;
+                            } catch (error) {
+                                addDebugLog(`❌ Error: ${error.message}`);
+                                console.error('Error getting client secret:', error);
+                                statusDiv.textContent = `❌ Error: ${error.message}`;
+                                statusDiv.className = 'error';
+                                throw error;
                             }
-                            
-                            const data = await response.json();
-                            
-                            if (data.error) {
-                                throw new Error(data.error);
-                            }
-                            
-                            statusDiv.textContent = '✓ Connected successfully!';
-                            statusDiv.className = 'success';
-                            
-                            // Hide success message after 2 seconds
-                            setTimeout(() => {
-                                statusDiv.style.display = 'none';
-                            }, 2000);
-                            
-                            return data.client_secret;
-                        } catch (error) {
-                            console.error('Error getting client secret:', error);
-                            statusDiv.textContent = `❌ Error: ${error.message}. Check console for details.`;
-                            statusDiv.className = 'error';
-                            throw error;
                         }
                     }
-                }
-            });
+                });
+                
+                addDebugLog('✓ ChatKit configured successfully');
+            } catch (error) {
+                addDebugLog(`❌ Configuration error: ${error.message}`);
+                console.error('Configuration error:', error);
+            }
         }
+        
+        // Listen for any ChatKit errors
+        window.addEventListener('error', (event) => {
+            addDebugLog(`❌ Global error: ${event.message}`);
+        });
         
         // Start initialization when page loads
         if (document.readyState === 'loading') {

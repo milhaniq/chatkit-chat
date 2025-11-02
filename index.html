@@ -3,47 +3,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My ChatKit Agent</title>
+    <title>My HR Bot</title>
+    <script src="https://cdn.platform.openai.com/deployments/chatkit/chatkit.js" async></script>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        * {
             margin: 0;
-            padding: 20px;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            padding: 20px;
         }
         
         .container {
             background: white;
             border-radius: 16px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            padding: 30px;
+            padding: 40px;
             max-width: 900px;
             width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
         }
         
+        header {
+            text-align: center;
+        }
+
         h1 {
-            margin: 0 0 10px 0;
             color: #2d3748;
-            font-size: 2em;
+            font-size: 2.5em;
+            font-weight: 700;
+            margin-bottom: 10px;
         }
         
         .subtitle {
             color: #718096;
-            margin-bottom: 30px;
             font-size: 1.1em;
         }
         
         #status {
-            padding: 12px 20px;
+            padding: 14px 20px;
             border-radius: 8px;
-            margin-bottom: 20px;
             font-weight: 500;
-            display: block;
+            text-align: center;
+            transition: all 0.3s ease;
         }
         
         #status.loading {
@@ -60,212 +73,130 @@
             background: #c6f6d5;
             color: #22543d;
         }
+
+        #status.hidden {
+            display: none;
+        }
         
+        .chat-wrapper {
+            position: relative;
+            width: 100%;
+        }
+
         openai-chatkit {
+            display: block;
             height: 600px;
             width: 100%;
             border-radius: 12px;
             overflow: hidden;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            display: block;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
         
-        .config-note {
-            margin-top: 20px;
-            padding: 15px;
-            background: #e8f5e9;
-            border-left: 4px solid #4caf50;
-            border-radius: 4px;
-            font-size: 0.9em;
-            color: #2e7d32;
+        footer {
+            text-align: center;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
         }
-        
-        .config-note strong {
-            display: block;
-            margin-bottom: 5px;
+
+        footer a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s ease;
         }
-        
-        .debug-info {
-            margin-top: 20px;
-            padding: 15px;
-            background: #f5f5f5;
-            border-radius: 4px;
-            font-size: 0.85em;
-            font-family: monospace;
-            max-height: 300px;
-            overflow-y: auto;
+
+        footer a:hover {
+            color: #764ba2;
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 2em;
+            }
+
+            openai-chatkit {
+                height: 500px;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🤖 My AI Agent</h1>
-        <p class="subtitle">Powered by OpenAI ChatKit</p>
+        <header>
+            <h1>🤖 My HR Bot</h1>
+            <p class="subtitle">Your AI-powered HR assistant</p>
+        </header>
         
-        <div id="status" class="loading">Loading ChatKit...</div>
+        <div id="status" class="loading">Connecting...</div>
         
-        <openai-chatkit id="my-chat"></openai-chatkit>
-        
-        <div class="config-note">
-            <strong>✓ Connected to backend:</strong>
-            https://chatkit-agent-server.onrender.com
+        <div class="chat-wrapper">
+            <openai-chatkit id="my-chat"></openai-chatkit>
         </div>
         
-        <div class="debug-info" id="debug-info">
-            <strong>Debug Log:</strong><br>
-            Initializing...
-        </div>
+        <footer>
+            <a href="https://milhaniq.com" target="_blank" rel="noopener noreferrer">milhaniq.com</a>
+        </footer>
     </div>
 
-    <script src="https://cdn.platform.openai.com/deployments/chatkit/chatkit.js"></script>
     <script>
-        // Capture ALL console errors
-        const originalConsoleError = console.error;
-        console.error = function(...args) {
-            addDebugLog(`🔴 Console Error: ${args.join(' ')}`);
-            originalConsoleError.apply(console, args);
-        };
-        
-        const originalConsoleWarn = console.warn;
-        console.warn = function(...args) {
-            addDebugLog(`⚠️ Console Warning: ${args.join(' ')}`);
-            originalConsoleWarn.apply(console, args);
-        };
-        
-        // Your Render backend URL
         const BACKEND_URL = 'https://chatkit-agent-server.onrender.com';
-        
         const statusDiv = document.getElementById('status');
-        const debugDiv = document.getElementById('debug-info');
+        const chatkit = document.getElementById('my-chat');
         
-        function addDebugLog(message) {
-            const timestamp = new Date().toLocaleTimeString();
-            debugDiv.innerHTML += `<br>[${timestamp}] ${message}`;
-            debugDiv.scrollTop = debugDiv.scrollHeight;
-            console.log(`[ChatKit Debug] ${message}`);
-        }
-        
-        // Monitor ChatKit element
-        function monitorChatKit() {
-            const chatkit = document.getElementById('my-chat');
-            if (chatkit) {
-                addDebugLog(`ChatKit element exists. Display: ${window.getComputedStyle(chatkit).display}, Visibility: ${window.getComputedStyle(chatkit).visibility}`);
-                
-                // Check if it has content
-                if (chatkit.shadowRoot) {
-                    addDebugLog(`ChatKit has shadowRoot with ${chatkit.shadowRoot.children.length} children`);
-                } else {
-                    addDebugLog(`ChatKit has no shadowRoot yet`);
-                }
-            }
-        }
-        
-        // Wait for ChatKit to load
         function initializeChatKit() {
-            const chatkit = document.getElementById('my-chat');
-            
-            if (!chatkit) {
-                addDebugLog('❌ ChatKit element not found');
+            if (!chatkit || typeof chatkit.setOptions !== 'function') {
                 setTimeout(initializeChatKit, 100);
                 return;
             }
             
-            if (typeof chatkit.setOptions !== 'function') {
-                addDebugLog('⏳ Waiting for ChatKit script to load...');
-                setTimeout(initializeChatKit, 100);
-                return;
-            }
-            
-            addDebugLog('✓ ChatKit script loaded');
-            
-            // Monitor ChatKit periodically
-            setInterval(monitorChatKit, 2000);
-            
-            // Configure ChatKit
-            try {
-                chatkit.setOptions({
-                    api: {
-                        async getClientSecret(currentClientSecret) {
-                            try {
-                                addDebugLog('Requesting session from backend...');
-                                statusDiv.textContent = 'Creating chat session...';
-                                statusDiv.className = 'loading';
-                                
-                                const response = await fetch(`${BACKEND_URL}/api/chatkit/session`, {
-                                    method: 'POST',
-                                    headers: {
-                                        'Content-Type': 'application/json',
-                                    }
-                                });
-                                
-                                addDebugLog(`Backend response status: ${response.status}`);
-                                
-                                if (!response.ok) {
-                                    throw new Error(`Backend error: ${response.status}`);
+            chatkit.setOptions({
+                api: {
+                    async getClientSecret(currentClientSecret) {
+                        try {
+                            statusDiv.textContent = 'Creating chat session...';
+                            statusDiv.className = 'loading';
+                            
+                            const response = await fetch(`${BACKEND_URL}/api/chatkit/session`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
                                 }
-                                
-                                const data = await response.json();
-                                addDebugLog('Received response from backend');
-                                
-                                if (data.error) {
-                                    throw new Error(data.error);
-                                }
-                                
-                                if (!data.client_secret) {
-                                    throw new Error('No client_secret in response');
-                                }
-                                
-                                addDebugLog('✓ Got client_secret successfully');
-                                addDebugLog(`Client secret starts with: ${data.client_secret.substring(0, 20)}...`);
-                                
-                                statusDiv.textContent = '✓ Session created! Waiting for chat to load...';
-                                statusDiv.className = 'success';
-                                
-                                // Monitor what happens after returning the secret
-                                setTimeout(() => {
-                                    addDebugLog('5 seconds after returning client_secret...');
-                                    monitorChatKit();
-                                }, 5000);
-                                
-                                return data.client_secret;
-                            } catch (error) {
-                                addDebugLog(`❌ Error: ${error.message}`);
-                                console.error('Error getting client secret:', error);
-                                statusDiv.textContent = `❌ Error: ${error.message}`;
-                                statusDiv.className = 'error';
-                                throw error;
+                            });
+                            
+                            if (!response.ok) {
+                                throw new Error(`Connection error: ${response.status}`);
                             }
+                            
+                            const data = await response.json();
+                            
+                            if (data.error) {
+                                throw new Error(data.error);
+                            }
+                            
+                            statusDiv.textContent = '✓ Connected!';
+                            statusDiv.className = 'success';
+                            
+                            setTimeout(() => {
+                                statusDiv.className = 'success hidden';
+                            }, 2000);
+                            
+                            return data.client_secret;
+                        } catch (error) {
+                            console.error('Error:', error);
+                            statusDiv.textContent = `❌ ${error.message}`;
+                            statusDiv.className = 'error';
+                            throw error;
                         }
                     }
-                });
-                
-                addDebugLog('✓ ChatKit configured successfully');
-                
-                // Listen for custom events
-                chatkit.addEventListener('error', (e) => {
-                    addDebugLog(`❌ ChatKit error event: ${JSON.stringify(e.detail)}`);
-                });
-                
-                chatkit.addEventListener('ready', (e) => {
-                    addDebugLog(`✓ ChatKit ready event fired!`);
-                });
-                
-            } catch (error) {
-                addDebugLog(`❌ Configuration error: ${error.message}`);
-                console.error('Configuration error:', error);
-            }
+                }
+            });
         }
         
-        // Listen for any errors
-        window.addEventListener('error', (event) => {
-            addDebugLog(`❌ Global error: ${event.message} at ${event.filename}:${event.lineno}`);
-        });
-        
-        window.addEventListener('unhandledrejection', (event) => {
-            addDebugLog(`❌ Unhandled promise rejection: ${event.reason}`);
-        });
-        
-        // Start initialization when page loads
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', initializeChatKit);
         } else {
